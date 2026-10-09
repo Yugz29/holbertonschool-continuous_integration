@@ -9,6 +9,12 @@ test("GET /health returns ok", async () => {
   assert.deepStrictEqual(res.body, { status: "ok" });
 });
 
+test("GET / returns the app message", async () => {
+  const res = await request(app).get("/");
+  assert.strictEqual(res.status, 200);
+  assert.match(res.text, /CI demo app/);
+});
+
 test("deliberately failing test", () => {
   assert.strictEqual(1 + 1, 3);
 });
