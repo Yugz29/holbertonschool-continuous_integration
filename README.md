@@ -132,3 +132,66 @@ Cache restored from key: node-cache-Linux-x64-npm-7320d4a05ce41da75d9878d7a474d9
 - With a cache hit, the `npm ci` step drops from 8 s to 4 s in total (**-50%**), and every job installs in about 1 s.
 - The overall pipeline time barely changes (13 s → 12 s): this app has about 100 small packages, so installing them was already fast, and the remaining time is runner setup, which caching cannot reduce.
 - The gain grows with the dependency tree: on a project with hundreds of packages, `npm ci` without cache commonly takes tens of seconds or more per job, multiplied by every job of the matrix.
+
+### 4 - Secrets and control flow
+
+```yaml
+  deploy:
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deploy token
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo "DEPLOY_TOKEN secret is missing"
+            exit 1
+          fi
+          echo "Deploy token loaded (value never printed)"
+
+      - name: Simulated deploy
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: echo "Deploying ${{ github.sha }} to production..."
+```
+
+#### Secret
+
+- `DEPLOY_TOKEN` is a **repository secret**, created without ever displaying its value:
+  ```bash
+  openssl rand -hex 16 | gh secret set DEPLOY_TOKEN
+  ```
+- The workflow reads it only through the `secrets` context (`${{ secrets.DEPLOY_TOKEN }}`). Nothing is hardcoded in the repository.
+- It is passed to the shell through `env:` instead of being interpolated into the `run:` script, so its value never appears in the script text.
+- The workflow never echoes it, and GitHub masks it anyway. Log excerpt from the deploy job:
+  ```
+  env:
+    DEPLOY_TOKEN: ***
+  Deploy token loaded (value never printed)
+  ```
+
+#### Control flow
+
+- **`needs: [lint, test]`**: `deploy` starts only after `lint` and **all** `test` matrix jobs have succeeded. If any of them fails, `deploy` does not run.
+- **`if:`**: `deploy` runs only on a push to `main`. On pull requests it is reported as **skipped**.
+
+Evidence:
+
+| Run | Event | `deploy` |
+|---|---|---|
+| [PR #5 - ci: add main-only deploy job](https://github.com/Yugz29/holbertonschool-continuous_integration/pull/5) | `pull_request` | ⏭️ skipped (`if:` is false) |
+| [Run #37935589183 on `main`](https://github.com/Yugz29/holbertonschool-continuous_integration/actions/runs/37935589183) | `push` to `main` | ✅ ran after all other jobs |
+
+Job timeline of the `main` run (UTC):
+
+| Job | Start | End |
+|---|---|---|
+| `lint` | 13:15:47 | 13:15:57 |
+| `test (20)` | 13:15:47 | 13:15:57 |
+| `test (22)` | 13:15:48 | 13:15:57 |
+| `test (24)` | 13:15:48 | 13:15:58 |
+| `deploy` | **13:16:01** | 13:16:04 |
+
+`lint` and the three `test` jobs run in parallel; `deploy` waits for all of them before starting.
