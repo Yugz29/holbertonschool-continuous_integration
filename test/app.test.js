@@ -14,3 +14,7 @@ test("GET / returns the app message", async () => {
   assert.strictEqual(res.status, 200);
   assert.match(res.text, /CI demo app/);
 });
+
+test("deliberately failing test", () => {
+  assert.strictEqual(1 + 1, 3);
+});
