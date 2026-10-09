@@ -53,9 +53,9 @@ Evidence:
 | PR | Change | Result |
 |---|---|---|
 | [#1 - test: cover root route](https://github.com/Yugz29/holbertonschool-continuous_integration/pull/1) | Adds a real test for `GET /` | `lint` ✅ `test` ✅ - mergeable |
-| [#2 - test: deliberately failing test](https://github.com/Yugz29/holbertonschool-continuous_integration/pull/2) | Adds `assert.strictEqual(1 + 1, 3)` | `lint` ✅ `test` ❌ - merge blocked |
+| [#2 - test: deliberately failing test](https://github.com/Yugz29/holbertonschool-continuous_integration/pull/2) | Adds `assert.strictEqual(1 + 1, 3)` | `lint` ✅ `test (20)` ❌ `test (22)` ❌ `test (24)` ❌ - merge blocked |
 
-PR #2 is intentionally left open as proof that a failing test turns the check red and blocks the merge.
+PR #2 is intentionally left open as proof that a failing test turns the check red and blocks the merge. Since task 2, it also shows `fail-fast: false` at work: all three matrix jobs ran to completion and reported their own failure instead of being cancelled.
 
 All pull request runs: [Actions - pull_request events](https://github.com/Yugz29/holbertonschool-continuous_integration/actions?query=event%3Apull_request)
 
