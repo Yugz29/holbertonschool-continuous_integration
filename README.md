@@ -90,3 +90,45 @@ Evidence: [PR #3 - ci: run tests across node 20, 22 and 24](https://github.com/Y
 | `test (20)` | ✅ | 11 s |
 | `test (22)` | ✅ | 8 s |
 | `test (24)` | ✅ | 10 s |
+
+### 3 - Make it fast
+
+```yaml
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+```
+
+- `cache: npm` makes `actions/setup-node` save npm's download cache (`~/.npm`) at the end of a run and restore it at the start of the next one.
+- The cache key is a hash of `package-lock.json` (`node-cache-Linux-x64-npm-<hash>`): as long as dependencies do not change, the cache is reused. Changing a dependency changes the key and creates a fresh cache.
+- `npm ci` still runs, but installs packages from the local cache instead of downloading them from the registry.
+
+#### Measurement method
+
+Durations come from the GitHub API (`gh run view <id> --json jobs`): job duration and duration of the `npm ci` step, for each of the 4 jobs. Three runs were compared:
+
+1. **Before**: last run on `main` without caching.
+2. **Cache miss**: first run with caching. No cache exists yet; it is created at the end of the run.
+3. **Cache hit**: re-run of the same workflow. The cache is restored.
+
+#### Results
+
+| Run | `npm ci` (lint / 20 / 22 / 24) | `npm ci` total | Slowest job (pipeline time) |
+|---|---|---|---|
+| [Before (no cache)](https://github.com/Yugz29/holbertonschool-continuous_integration/actions/runs/37931804457) | 2 s / 1 s / 3 s / 2 s | **8 s** | 13 s |
+| [Cache miss (attempt 1)](https://github.com/Yugz29/holbertonschool-continuous_integration/actions/runs/37932104559/attempts/1) | 1 s / 1 s / 3 s / 2 s | 7 s | 15 s |
+| [Cache hit (attempt 2)](https://github.com/Yugz29/holbertonschool-continuous_integration/actions/runs/37932104559/attempts/2) | 1 s / 1 s / 1 s / 1 s | **4 s** | 12 s |
+
+Cache hit visible in the logs of all 4 jobs:
+
+```
+Cache restored successfully
+Cache restored from key: node-cache-Linux-x64-npm-7320d4a05ce41da75d9878d7a474d980a935f5abd5ff0c6571af7b1d7b72f8b5
+```
+
+#### Analysis
+
+- With a cache hit, the `npm ci` step drops from 8 s to 4 s in total (**-50%**), and every job installs in about 1 s.
+- The overall pipeline time barely changes (13 s → 12 s): this app has about 100 small packages, so installing them was already fast, and the remaining time is runner setup, which caching cannot reduce.
+- The gain grows with the dependency tree: on a project with hundreds of packages, `npm ci` without cache commonly takes tens of seconds or more per job, multiplied by every job of the matrix.
