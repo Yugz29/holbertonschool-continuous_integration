@@ -26,7 +26,7 @@ Workflow file: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 ### 0 - First workflow
 
-- **Trigger**: every `push`.
+- **Trigger**: `push` (restricted to `main` since task 1, see below).
 - **Job `lint`** on an `ubuntu-latest` runner:
   1. `actions/checkout` fetches the code.
   2. `actions/setup-node` installs Node.js 20.
@@ -34,3 +34,27 @@ Workflow file: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
   4. `npm run lint` runs ESLint. Any lint error fails the job.
 
 Successful run: [CI run #37921455495](https://github.com/Yugz29/holbertonschool-continuous_integration/actions/runs/37921455495)
+
+### 1 - Test on every pull request
+
+```yaml
+on:
+  push:
+    branches: [main]
+  pull_request:
+```
+
+- A second job, **`test`**, runs `npm test` in parallel with `lint`.
+- The workflow runs on every **pull request**, and on **pushes to `main`** only. Without the branch filter, a push to a branch with an open PR would trigger the pipeline twice (`push` + `pull_request`).
+- A **ruleset** on `main` requires the `lint` and `test` checks (source: GitHub Actions) to pass before merging, so a red PR cannot be merged.
+
+Evidence:
+
+| PR | Change | Result |
+|---|---|---|
+| [#1 - test: cover root route](https://github.com/Yugz29/holbertonschool-continuous_integration/pull/1) | Adds a real test for `GET /` | `lint` ✅ `test` ✅ - mergeable |
+| [#2 - test: deliberately failing test](https://github.com/Yugz29/holbertonschool-continuous_integration/pull/2) | Adds `assert.strictEqual(1 + 1, 3)` | `lint` ✅ `test` ❌ - merge blocked |
+
+PR #2 is intentionally left open as proof that a failing test turns the check red and blocks the merge.
+
+All pull request runs: [Actions - pull_request events](https://github.com/Yugz29/holbertonschool-continuous_integration/actions?query=event%3Apull_request)
