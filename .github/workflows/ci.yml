@@ -31,3 +31,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+  deploy:
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deploy token
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo "DEPLOY_TOKEN secret is missing"
+            exit 1
+          fi
+          echo "Deploy token loaded (value never printed)"
+
+      - name: Simulated deploy
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: echo "Deploying ${{ github.sha }} to production..."
